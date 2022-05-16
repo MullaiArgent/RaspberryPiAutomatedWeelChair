@@ -1,0 +1,111 @@
+import tm1637
+import time
+import os
+import RPi.GPIO as GPIO
+from pad4pi import rpi_gpio
+from datetime import datetime
+import threading
+import pygame
+pygame.mixer.init()
+
+try:
+    tm = tm1637.TM1637(clk=5, dio=23)
+    key = 0
+    motor1F = 26
+    motor1R = 19
+    motor2F = 13
+    motor2R = 12
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(motor1F, GPIO.OUT)
+    GPIO.output(motor1F, 0)
+    GPIO.setup(motor1R, GPIO.OUT)
+    GPIO.output(motor1R, 0)
+    GPIO.setup(motor2F, GPIO.OUT)
+    GPIO.output(motor2F, 0)
+    GPIO.setup(motor2R, GPIO.OUT)
+    GPIO.output(motor2R, 0)
+
+    KEYPAD = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9],
+        ["*", 0, "#"]
+    ]
+
+    ROW_PINS = [4, 14, 15, 17]  # BCM numbering
+    COL_PINS = [18, 27, 22]     # BCM numbering
+
+    factory = rpi_gpio.KeypadFactory()
+
+    # Try factory.create_4_by_3_keypad
+    # and factory.create_4_by_4_keypad for reasonable defaults
+
+    keypad = factory.create_keypad(keypad=KEYPAD, row_pins=ROW_PINS, col_pins=COL_PINS)
+
+    def printKey(key):
+        print(key)
+        for k in range(int(key)):
+            
+            l = key - k
+            tm.number(l)
+            GPIO.output(motor1F, 1)
+            GPIO.output(motor2F, 1)
+            time.sleep(0.5)
+            GPIO.output(motor1F, 0)
+            GPIO.output(motor2F, 0)
+            
+            time.sleep(0.5)
+            GPIO.output(motor1R, 1)
+            GPIO.output(motor2R, 1)
+            
+            time.sleep(0.5)
+            GPIO.output(motor1R, 0)
+            GPIO.output(motor2R, 0)
+            
+            time.sleep(0.5)
+        tm.write([0b00000110, 0b01010100, 0b01110011, 0b01111000])
+        
+
+    # printKey will be called each time a keypad button is pressed
+
+    i = keypad.registerKeyPressHandler(printKey)
+    tm.write([0b00000110, 0b01010100, 0b01110011, 0b01111000])
+    time.sleep(3)
+
+
+    def alarm():
+        def play(str):
+            print("playing.. called")
+            pygame.mixer.music.load(str)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy() == True:
+                continue
+            
+        test  = None
+        test1 = None
+        test2 = None
+        test3 = None
+        
+        while True:
+            if str(datetime.today().strftime("%I:%M %p"))   == "03:10 PM" and test  is None:
+                test = 1
+                play("in5min.wav")
+            elif str(datetime.today().strftime("%I:%M %p")) == "03:11 PM" and test1 is None:
+                test1 = 1
+                play("mrng.mp3")
+                printKey(5)
+            elif str(datetime.today().strftime("%I:%M %p"))   == "03:00 PM" and test  is None:
+                test = 1
+                play("in5min.wav")
+            elif str(datetime.today().strftime("%I:%M %p")) == "03:06 PM" and test3 is None:
+                test3 = 1
+                play("evng.mp3")
+                printKey(5)
+    t1 = threading.Thread(target=alarm(), args=())
+    print("starting the thread")
+    t1.start()
+except KeyboardInterrupt:
+    print("Admin Interrupt.. cleaning up the Channel, tata mamae")
+    tm.number(0)
+finally:
+    GPIO.cleanup()
